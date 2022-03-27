@@ -21,7 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static akka.http.javadsl.server.PathMatchers.integerSegment;
 import net.minidev.json.JSONObject;
-
+import net.minidev.json.parser.JSONParser;
 
 
 public class DeliveryRoutes {
@@ -41,7 +41,7 @@ public class DeliveryRoutes {
         return AskPattern.ask(deliveryActor, ref -> new DeliveryApp.RequestOrder(order, ref), askTimeout, scheduler);
     }
 
-    private CompletionStage<DeliveryApp.DeliveryCommand> getOrder(int orderId) {
+    private CompletionStage<DeliveryApp.OrderSend> getOrder(int orderId) {
         return AskPattern.ask(deliveryActor, ref -> new DeliveryApp.GetOrder(orderId, ref), askTimeout, scheduler);
     }
 
@@ -71,9 +71,14 @@ public class DeliveryRoutes {
                         path(integerSegment(), (Integer orderId) ->
                         concat(
                             get(() -> 
-                                onSuccess(getOrder(orderId), performed ->
-                                complete(StatusCodes.OK,
-                                performed, Jackson.marshaller())
+                                onSuccess(getOrder(orderId), performed -> {
+                                        if(performed.status.equals("NA"))
+                                            return complete(StatusCodes.NOT_FOUND, new JSONObject(),Jackson.marshaller());
+                                        else
+                                            return complete(StatusCodes.OK, performed, Jackson.marshaller());
+                                    
+                                }
+                                
                                 )
                             )
                         )

@@ -47,18 +47,10 @@ public class DeliveryApp {
 
   public final static class OrderSend implements DeliveryCommand {
 	public final int orderId;
-	public final int custId;
-	public final int restId;
-	public final int itemId;
-	public final int qty;
 	public final String status;
 	@JsonCreator
-	public OrderSend(@JsonProperty("orderId") int orderId, @JsonProperty("restId") int restId, @JsonProperty("itemId") int itemId, @JsonProperty("custId") int custId, @JsonProperty("qty") int qty, @JsonProperty("status") String status) {
+	public OrderSend(@JsonProperty("orderId") int orderId, @JsonProperty("status") String status) {
 	  this.orderId = orderId;
-	  this.restId = restId;
-	  this.itemId = itemId;
-	  this.qty = qty;
-	  this.custId = custId;
 	  this.status = status;
 	}
   }
@@ -67,9 +59,9 @@ public class DeliveryApp {
 
   public final static class GetOrder implements DeliveryCommand {
 	public final int orderId;
-	public final ActorRef<DeliveryCommand> replyTo;
+	public final ActorRef<OrderSend> replyTo;
 
-	public GetOrder(int orderId, ActorRef<DeliveryCommand> replyTo) {
+	public GetOrder(int orderId, ActorRef<OrderSend> replyTo) {
 	  this.replyTo = replyTo;
 	  this.orderId = orderId;
 
@@ -117,9 +109,9 @@ public class DeliveryApp {
   interface OrderEvent {}
 
   public final static class FetchOrder implements OrderEvent {
-	public final ActorRef<DeliveryCommand> replyTo;
+	public final ActorRef<OrderSend> replyTo;
 
-	public FetchOrder(ActorRef<DeliveryCommand> replyTo) {
+	public FetchOrder(ActorRef<OrderSend> replyTo) {
 	  this.replyTo = replyTo;
 	}
   }
@@ -157,7 +149,10 @@ public class DeliveryApp {
 
   public Behavior<DeliveryCommand> onGetOrder(GetOrder command) {
 	ActorRef<OrderEvent> orderActor = orders.get(command.orderId);
-	orderActor.tell(new FetchOrder(command.replyTo));
+	if(orderActor != null)
+		orderActor.tell(new FetchOrder(command.replyTo));
+	else
+		command.replyTo.tell(new OrderSend(-1, "NA"));
 	return this;
   }
 
@@ -214,6 +209,8 @@ public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
 
 	int price = items.get(this.itemId);
 
+	System.out.println("Val : " + price);
+
 	return price*this.qty;
   }
 
@@ -239,7 +236,7 @@ public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
 			count=-1;
 		}
 		else if(count>0) {
-		  items.put(Integer.parseInt(line.split(" ")[0]), Integer.parseInt(line.split(" ")[2]));
+		  items.put(Integer.parseInt(line.split(" ")[0]), Integer.parseInt(line.split(" ")[1]));
 		  count--;
 		  if(count==0) {
 			this.restaurants.put(restId, items);
@@ -305,8 +302,8 @@ public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
 		}	
 	}
 	catch(HttpClientErrorException e) {
-		httpEntityWallet = new HttpEntity<Object>(entityWallet.toString(), headers);
-		restTemplate.exchange("http://localhost:8082/addBalance", HttpMethod.POST, httpEntityWallet, Object.class);
+		//httpEntityWallet = new HttpEntity<Object>(entityWallet.toString(), headers);
+		//restTemplate.exchange("http://localhost:8082/addBalance", HttpMethod.POST, httpEntityWallet, Object.class);
 	}
 	
 	return this;
@@ -314,8 +311,7 @@ public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
 
 
   public Behavior<OrderEvent> onFetchOrder(FetchOrder command) {
-  	System.out.println("command");	
-	command.replyTo.tell(new OrderSend(this.orderId, this.restId, this.itemId, this.custId, this.qty, this.status));
+	command.replyTo.tell(new OrderSend(this.orderId, this.status));
 	return this;
   }
 

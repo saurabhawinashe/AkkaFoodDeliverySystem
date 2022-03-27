@@ -14,7 +14,7 @@ def t1(result):  # First concurrent request
 
 	# Customer 301 requests an order of item 1, quantity 3 from restaurant 101
 	http_response = requests.post(
-		"http://localhost:8081/requestOrder", json={"custId": 301, "restId": 101, "itemId": 2, "qty": 8})
+		"http://localhost:8081/requestOrder", json={"custId": 301, "restId": 101, "itemId": 2, "qty": 4})
 
 	result["1"] = http_response
 
@@ -23,7 +23,7 @@ def t2(result):  # Second concurrent request
 
 	# Customer 302 requests an order of item 1, quantity 3 from restaurant 101
 	http_response = requests.post(
-		"http://localhost:8081/requestOrder", json={"custId": 301, "restId": 101, "itemId": 2, "qty": 8})
+		"http://localhost:8081/requestOrder", json={"custId": 301, "restId": 101, "itemId": 2, "qty": 4})
 
 	result["2"] = http_response
 
@@ -75,7 +75,7 @@ def test():
 		
 		if(http_response.status_code != HTTPStatus.OK):
 			return 'Fail'
-
+			
 		res_body = http_response.json()
 		
 		if res_body.get("status") != "delivered":
