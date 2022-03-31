@@ -61,12 +61,12 @@ public class DeliveryRoutes {
                             order ->
                                 onSuccess(requestOrder(order), performed -> {
                                   log.info("Create result:");
-                                  try {
+                                  /*try {
                                     Thread.sleep(1000);  
                                   }
                                   catch(Exception e) {
                                     e.printStackTrace();
-                                  }
+                                  }*/
                                   return complete(StatusCodes.CREATED, performed, Jackson.marshaller());
                                 })
                         )
@@ -79,12 +79,13 @@ public class DeliveryRoutes {
                         concat(
                             get(() -> 
                                 onSuccess(getOrder(orderId), performed -> {
-                                        try {
+                                        /*try {
                                             Thread.sleep(1000);  
                                         }
                                         catch(Exception e) {
                                             e.printStackTrace();
-                                        }
+                                        }*/
+                                        log.info(performed.status);
                                         if(performed.status.equals("NA"))
                                             return complete(StatusCodes.NOT_FOUND, new JSONObject(),Jackson.marshaller());
                                         else
@@ -104,12 +105,12 @@ public class DeliveryRoutes {
                                 onSuccess(reInitialize(), performed -> {
                                   JSONObject entity = new JSONObject();
                                   log.info("Reinitialized");
-                                  try {
+                                  /*try {
                                     Thread.sleep(1000);  
                                   }
                                   catch(Exception e) {
                                     e.printStackTrace();
-                                  }
+                                  } */
                                   return complete(StatusCodes.CREATED, entity, Jackson.marshaller());
                                 })
                         )

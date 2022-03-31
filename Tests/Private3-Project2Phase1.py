@@ -1,9 +1,9 @@
 from http import HTTPStatus
 from threading import Thread
 import requests
-
-# Check if only one order is assigned when multiple concurrent requests
-# for order comes, when only one delivery agent is available
+import time
+# Check if after refilling the items in restaurant and also adding sufficient
+# balance in customers account, is the order placed successfully
 
 # RESTAURANT SERVICE    : http://localhost:8080
 # DELIVERY SERVICE      : http://localhost:8081
@@ -56,20 +56,30 @@ def test():
     status_code2 = result["2"].status_code
     
     if(status_code1 != HTTPStatus.CREATED and status_code2 != HTTPStatus.CREATED):
-        return "Fail90"
+        return "Fail1"
 
     # Check status of first order
     http_response = requests.post(
         f"http://localhost:8082/addBalance", json = {"custId":301, "amount":10000})
         
     if(http_response.status_code != HTTPStatus.CREATED):
-        return "Fail11"
+        return "Fail2"
         
     http_response = requests.post(
         f"http://localhost:8081/requestOrder", json = {"custId":301, "restId":101, "itemId":1, "qty":28})
 
     if(http_response.status_code != HTTPStatus.CREATED):
-        return 'Fail39'
+        return 'Fail3'
+
+    orderId = http_response.json().get("orderId")
+
+    time.sleep(1)
+
+    http_response = requests.get(
+        f"http://localhost:8081/order/{orderId}")
+
+    if(http_response.json().get('status') != "delivered"):
+        return "Fail4"
 
     return 'Pass'
 

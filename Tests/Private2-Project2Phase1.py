@@ -2,8 +2,11 @@ from http import HTTPStatus
 from threading import Thread
 import requests
 
-# Check if only one order is assigned when multiple concurrent requests
-# for order comes, when only one delivery agent is available
+# Check if only one order is assigned and other
+# invalid requests whose qty is not 
+# available with restaurant gets 
+# are not delivered and balance of user is added correctly after deduction
+# in later request. 
 
 # RESTAURANT SERVICE    : http://localhost:8080
 # DELIVERY SERVICE      : http://localhost:8081

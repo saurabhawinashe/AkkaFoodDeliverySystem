@@ -125,7 +125,15 @@ public class DeliveryApp {
 	return Behaviors.setup(Delivery::new);
   }
 
-
+  /**
+   * The Delivery actor has the following messages : 
+   * 		1. GetOrder : The client sends this message to receive the details of the order
+   * 		2. RequestOrder : The client uses this message to create an order
+   * 		3. ReInitialize : The client sends this message to reinitialize the Delivery actor and its associated orders
+   * 
+   * The Delivery actor has the global order ID that it uses to initialie FulfillOrder actors. On reinitializing, this global order ID is also set to its default value.
+   * It also has a list of spawned Orders in the form of a HashMap.
+  */
   public static class Delivery extends AbstractBehavior<DeliveryCommand> {
 
   private final HashMap<Integer, ActorRef<OrderEvent>> orders = new HashMap<>();
@@ -149,6 +157,11 @@ public class DeliveryApp {
 		.build();
   }
 
+  /**
+   * This method is executed on receiving a GetOrder message from the client along with an order ID.
+   * It forwards the request to the corresponding FulfillOrder actor using the FetchOrder message.
+   * If the order ID is invalid, it sends an invalid Order object back which is then translated to a 404.
+  **/
   public Behavior<DeliveryCommand> onGetOrder(GetOrder command) {
 	ActorRef<OrderEvent> orderActor = orders.get(command.orderId);
 	if(orderActor != null)
@@ -158,7 +171,15 @@ public class DeliveryApp {
 	return this;
   }
 
-
+  /**
+   * This method is executed on receiving a RequestOrder message from the client.
+   * It executes the following steps :
+   * 		1. Spawn a new FulfillOrder actor with the current global order ID and spawn ID value.
+   * 		2. Add the ActorRef to the orders HashMap with its key as the global order ID value.
+   * 		3. Send a message to the newly spawned FulfillOrder actor. The message to be sent is NewOrder.
+   * 		4. Send a reply back to the client with the order ID of the newly spawned order.
+   * 		5. Increment the global order ID and the spawn ID.
+  **/
   public Behavior<DeliveryCommand> onRequestOrder(RequestOrder command) {
 	ActorRef<OrderEvent> orderActor = getContext().spawn(FulfillOrder.create(getContext().getSelf(), orderId, command.order.restId, command.order.itemId, command.order.qty, command.order.custId, "unassigned"), "FulfillOrder-" + orderId + "-" + spawnId);
 	orders.put(orderId, orderActor);
@@ -170,7 +191,14 @@ public class DeliveryApp {
 	return this;
   }
 
-
+  /**
+   * This method is executed on receiving a ReInitialize message from the client.
+   * It performs the following steps : 
+   * 		1. Loop through all the ActorRefs present in the orders HashMap and stop them.
+   * 		2. Set the global order ID back to its default value.
+   * 		3. Clear the orders HashMap
+   * 		4. Send a reply back to the client.
+	**/
   public Behavior<DeliveryCommand> onReInitialize(ReInitialize command) {
   	for (Map.Entry mapElement : orders.entrySet()) {
   		ActorRef<OrderEvent> orderActor = (ActorRef<OrderEvent>)mapElement.getValue();
@@ -185,7 +213,13 @@ public class DeliveryApp {
 }
 
 
-
+/**
+ * The FulfillOrder actor corresponds to a order in the system. Each FulfillOrder actor can receive the following messages : 
+ * 		1. NewOrder : The Delivery actor sends this message on spawning a new order.
+ * 		2. FetchOrder : The Delivery actor sends this message to instruct the Order actor to send the order details to the client.
+ * 
+ * The Fulfill Order has in its state all the necessary details about the order ie, orderID, status, restId, itemId, custId and the qty.
+*/
 public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
   
   public final int orderId;
@@ -206,7 +240,9 @@ public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
 	this.status = status;
   }
 
-
+  /**
+   * This method computes the total bill associated with the order.
+  **/
   public int totalBill() {
 	HashMap<Integer, Integer> items = this.restaurants.get(this.restId);
 
@@ -217,6 +253,9 @@ public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
 	return price*this.qty;
   }
 
+  /**
+   * This method reads data from the initialData.txt file and create a structure that stores the restaurant ID along with its associated items and their prices.
+  **/
   public void initRestaurants() throws IOException {
 	
 	try {
@@ -277,6 +316,15 @@ public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
 		.build();
   }
 
+  /**
+   * This method is executed on receiving a NewOrder message from the Delivery actor.
+   * It performs the following steps : 
+   * 		1. Initialize the restaurants from the initialData.txt file.
+   * 		2. Compute the total bill for the order.
+   * 		3. Deduct the customer's balance.
+   * 		4. If the balance was successfully deducted, update the inventory.
+   * 		5. If the inventory update was successful, mark the order as delivered.
+  **/
   public Behavior<OrderEvent> onNewOrder(NewOrder command) throws IOException{
 	this.initRestaurants();
 	RestTemplate restTemplate = new RestTemplate();
@@ -312,7 +360,10 @@ public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
 	return this;
   }
 
-
+  /**
+   * This method is executed on receiving a FetchOrder message from the Delivery Actor.
+   * It sends the order ID and the status to the client. The Client is a part of the message that was sent by the Delivery actor. 
+  **/
   public Behavior<OrderEvent> onFetchOrder(FetchOrder command) {
 	command.replyTo.tell(new OrderSend(this.orderId, this.status));
 	return this;
