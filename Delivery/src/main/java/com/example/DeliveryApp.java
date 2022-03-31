@@ -130,10 +130,12 @@ public class DeliveryApp {
 
   private final HashMap<Integer, ActorRef<OrderEvent>> orders = new HashMap<>();
   private int orderId;
+  private int spawnId;
 
   public Delivery(ActorContext<DeliveryCommand> context) {
 	super(context);
 	this.orderId = 1000;
+	this.spawnId = 0;
   }
   
 
@@ -158,12 +160,13 @@ public class DeliveryApp {
 
 
   public Behavior<DeliveryCommand> onRequestOrder(RequestOrder command) {
-	ActorRef<OrderEvent> orderActor = getContext().spawn(FulfillOrder.create(getContext().getSelf(), orderId, command.order.restId, command.order.itemId, command.order.qty, command.order.custId, "unassigned"), "FulfillOrder-" + orderId);
+	ActorRef<OrderEvent> orderActor = getContext().spawn(FulfillOrder.create(getContext().getSelf(), orderId, command.order.restId, command.order.itemId, command.order.qty, command.order.custId, "unassigned"), "FulfillOrder-" + orderId + "-" + spawnId);
 	orders.put(orderId, orderActor);
 	orderActor.tell(new NewOrder());
 	System.out.println("order done");
 	command.replyTo.tell(new OrderGen(this.orderId));
 	orderId++;
+	spawnId++;
 	return this;
   }
 

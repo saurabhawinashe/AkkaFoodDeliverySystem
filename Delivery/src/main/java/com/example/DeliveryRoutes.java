@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import static akka.http.javadsl.server.PathMatchers.integerSegment;
 import net.minidev.json.JSONObject;
 import net.minidev.json.parser.JSONParser;
+import java.lang.Thread;
 
 
 public class DeliveryRoutes {
@@ -60,6 +61,12 @@ public class DeliveryRoutes {
                             order ->
                                 onSuccess(requestOrder(order), performed -> {
                                   log.info("Create result:");
+                                  try {
+                                    Thread.sleep(1000);  
+                                  }
+                                  catch(Exception e) {
+                                    e.printStackTrace();
+                                  }
                                   return complete(StatusCodes.CREATED, performed, Jackson.marshaller());
                                 })
                         )
@@ -72,6 +79,12 @@ public class DeliveryRoutes {
                         concat(
                             get(() -> 
                                 onSuccess(getOrder(orderId), performed -> {
+                                        try {
+                                            Thread.sleep(1000);  
+                                        }
+                                        catch(Exception e) {
+                                            e.printStackTrace();
+                                        }
                                         if(performed.status.equals("NA"))
                                             return complete(StatusCodes.NOT_FOUND, new JSONObject(),Jackson.marshaller());
                                         else
@@ -91,6 +104,12 @@ public class DeliveryRoutes {
                                 onSuccess(reInitialize(), performed -> {
                                   JSONObject entity = new JSONObject();
                                   log.info("Reinitialized");
+                                  try {
+                                    Thread.sleep(1000);  
+                                  }
+                                  catch(Exception e) {
+                                    e.printStackTrace();
+                                  }
                                   return complete(StatusCodes.CREATED, entity, Jackson.marshaller());
                                 })
                         )
