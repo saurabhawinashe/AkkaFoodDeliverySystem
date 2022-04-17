@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 
+import com.example.DeliveryApp.AgentReceive;
 import com.example.DeliveryApp.Order;
 import com.example.DeliveryApp.OrderGen;
 import akka.actor.typed.ActorRef;
@@ -45,6 +46,22 @@ public class DeliveryRoutes {
     private CompletionStage<DeliveryApp.OrderSend> getOrder(int orderId) {
         return AskPattern.ask(deliveryActor, ref -> new DeliveryApp.GetOrder(orderId, ref), askTimeout, scheduler);
     }
+    
+    private CompletionStage<DeliveryApp.DeliveryCommand> deliverOrder(OrderGen order) {
+        return AskPattern.ask(deliveryActor, ref -> new DeliveryApp.OrderDelivered(order, ref), askTimeout, scheduler);
+    }
+    
+    private CompletionStage<DeliveryApp.AgentSend> getAgent(int agentId) {
+        return AskPattern.ask(deliveryActor, ref -> new DeliveryApp.GetAgentStatus(agentId, ref), askTimeout, scheduler);
+    }
+    
+    private CompletionStage<DeliveryApp.DeliveryCommand> agentSignIn(AgentReceive agent) {
+        return AskPattern.ask(deliveryActor, ref -> new DeliveryApp.AgentSignIn(agent, ref), askTimeout, scheduler);
+    }
+    
+    private CompletionStage<DeliveryApp.DeliveryCommand> agentSignOut(AgentReceive agent) {
+        return AskPattern.ask(deliveryActor, ref -> new DeliveryApp.AgentSignOut(agent, ref), askTimeout, scheduler);
+    }
 
     private CompletionStage<DeliveryApp.DeliveryCommand> reInitialize() {
         return AskPattern.ask(deliveryActor, ref -> new DeliveryApp.ReInitialize(ref), askTimeout, scheduler);
@@ -73,6 +90,69 @@ public class DeliveryRoutes {
                         )
                     )
                     ),
+                    
+                    path("orderDelivered", () ->
+                    pathEnd(() ->
+                    post(() ->
+                    entity(
+                        Jackson.unmarshaller(OrderGen.class),
+                        order ->
+                            onSuccess(deliverOrder(order), performed -> {
+                              log.info("Create result:");
+                              /*try {
+                                Thread.sleep(1000);  
+                              }
+                              catch(Exception e) {
+                                e.printStackTrace();
+                              }*/
+                              return complete(StatusCodes.CREATED, performed, Jackson.marshaller());
+                            })
+                    )
+                    )
+                )
+                ),
+                    
+                    path("agentSignIn", () ->
+                    pathEnd(() ->
+                    post(() ->
+                    entity(
+                        Jackson.unmarshaller(AgentReceive.class),
+                        agent ->
+                            onSuccess(agentSignIn(agent), performed -> {
+                              log.info("Create result:");
+                              /*try {
+                                Thread.sleep(1000);  
+                              }
+                              catch(Exception e) {
+                                e.printStackTrace();
+                              }*/
+                              return complete(StatusCodes.CREATED, performed, Jackson.marshaller());
+                            })
+                    )
+                    )
+                )
+                ),
+                    
+                    path("agentSignOut", () ->
+                    pathEnd(() ->
+                    post(() ->
+                    entity(
+                        Jackson.unmarshaller(AgentReceive.class),
+                        agent ->
+                            onSuccess(agentSignOut(agent), performed -> {
+                              log.info("Create result:");
+                              /*try {
+                                Thread.sleep(1000);  
+                              }
+                              catch(Exception e) {
+                                e.printStackTrace();
+                              }*/
+                              return complete(StatusCodes.CREATED, performed, Jackson.marshaller());
+                            })
+                    )
+                    )
+                )
+                ),
 
                     pathPrefix("order", () -> 
                         path(integerSegment(), (Integer orderId) ->
@@ -98,6 +178,33 @@ public class DeliveryRoutes {
                         )
                     )
                     ),
+                    
+                    pathPrefix("agent", () -> 
+                    path(integerSegment(), (Integer agentId) ->
+                    concat(
+                        get(() -> 
+                            onSuccess(getAgent(agentId), performed -> {
+                                    /*try {
+                                        Thread.sleep(1000);  
+                                    }
+                                    catch(Exception e) {
+                                        e.printStackTrace();
+                                    }*/
+                                    log.info(performed.status);
+                                    if(performed.status.equals("NA"))
+                                        return complete(StatusCodes.NOT_FOUND, new JSONObject(),Jackson.marshaller());
+                                    else
+                                        return complete(StatusCodes.OK, performed, Jackson.marshaller());
+                                
+                            }
+                            
+                            )
+                        )
+                    )
+                )
+                ),
+                    
+                    
 
                     path("reInitialize", () ->
                         pathEnd(() ->

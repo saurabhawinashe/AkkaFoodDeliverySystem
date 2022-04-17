@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="src" path="Delivery/src/main/java"/>
+	<classpathentry kind="src" path="Delivery/src/test/java"/>
+	<classpathentry kind="src" path="Restaurant/src/main/java"/>
+	<classpathentry kind="src" path="Restaurant/src/test/java"/>
+	<classpathentry kind="src" path="Wallet/src/main/java"/>
+	<classpathentry kind="src" path="Wallet/src/test/java"/>
+	<classpathentry kind="lib" path="Delivery/sbt-dist/bin/sbt-launch.jar"/>
+	<classpathentry kind="lib" path="Restaurant/.mvn/wrapper/maven-wrapper.jar"/>
+	<classpathentry kind="lib" path="Restaurant/bin/.mvn/wrapper/maven-wrapper.jar"/>
+	<classpathentry kind="lib" path="Restaurant/target/restaurant-0.0.1-SNAPSHOT.jar"/>
+	<classpathentry kind="lib" path="Wallet/.mvn/wrapper/maven-wrapper.jar"/>
+	<classpathentry kind="lib" path="Wallet/target/wallet-0.0.1-SNAPSHOT.jar"/>
+	<classpathentry kind="output" path="Delivery/target/classes"/>
+</classpath>
