@@ -156,7 +156,7 @@ def test():
 		if(http_response.status_code != HTTPStatus.CREATED):
 			return 'Fail'
 		
-		time.sleep(5)
+		time.sleep(10)
 		http_response1 = requests.get(
 		f"http://localhost:8081/agent/201")
 
@@ -166,6 +166,7 @@ def test():
 		status3 = http_response1.json().get("status")
 		status4 = http_response2.json().get("status")
 		
+		#print(status1, status2, status3, status4)
 		if(not(status1!=status3 and status2!=status4)):
 			return 'Fail6'
 			
@@ -192,7 +193,7 @@ def test():
 		status6 = http_response2.json().get("status")
 		
 		if(status5!="signed-out" or status6!="signed-out"):
-			return 'Fail6'
+			return 'Fail7'
 		
 	else:
 		return 'Fail'
