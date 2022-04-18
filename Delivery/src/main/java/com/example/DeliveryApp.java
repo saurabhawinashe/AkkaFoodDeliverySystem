@@ -1,9 +1,12 @@
 package com.example;
 
+import akka.actor.ActorSelection;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
+import akka.actor.typed.Scheduler;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
+import akka.actor.typed.javadsl.AskPattern;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.compat.Future;
@@ -23,11 +26,14 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import net.minidev.json.JSONObject;
+import scala.concurrent.Await;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 public class DeliveryApp {
 
@@ -240,6 +246,16 @@ public class DeliveryApp {
 	  }
   }
   
+  public final static class AssignStatus implements OrderEvent {
+	  public final int status;
+	  public final ActorRef<DeliveryCommand> replyTo;
+	  
+	  public AssignStatus(int status, ActorRef<DeliveryCommand> replyTo) {
+		  this.status = status;
+		  this.replyTo = replyTo;
+	  }
+  }
+  
   
   interface AgentEvent {}
   
@@ -262,25 +278,23 @@ public class DeliveryApp {
   }
   
   public final static class GetStatusOrder implements AgentEvent {
-	  /*public final ActorRef<AgentData> replyTo;
+	  public final ActorRef<AgentData> replyTo;
 
 		public GetStatusOrder(ActorRef<AgentData> replyTo) {
 		  this.replyTo = replyTo;
-		}*/
-	  public final ActorRef<OrderEvent> replyTo;
-	  
-	  public GetStatusOrder(ActorRef<OrderEvent> replyTo) {
-		  this.replyTo = replyTo;
-	  }
+		  
+		}
   }
   
   public final static class ChangeStatus implements AgentEvent {
 	  public final String status;
 	  public final ActorRef<DeliveryCommand> replyTo;
+	  public final ActorRef<OrderEvent> sender;
 	  
-	  public ChangeStatus(String status, ActorRef<DeliveryCommand> replyTo) {
+	  public ChangeStatus(String status, ActorRef<DeliveryCommand> replyTo,  ActorRef<OrderEvent> sender) {
 		  this.status = status;
 		  this.replyTo = replyTo;
+		  this.sender = sender;
 	  }
   }
 
@@ -421,7 +435,7 @@ public class DeliveryApp {
   	orders_waiting.clear();
   	for (Map.Entry mapElement : agents.entrySet()) {
   		ActorRef<AgentEvent> agent = (ActorRef<AgentEvent>)mapElement.getValue();
-  		agent.tell(new ChangeStatus("signed-out", null));
+  		agent.tell(new ChangeStatus("signed-out", null, null));
   	}
   	command.replyTo.tell(new ActionPerformed("Reinitialized"));
 	return this;
@@ -435,14 +449,14 @@ public class DeliveryApp {
   
   public Behavior<DeliveryCommand> onAgentSignIn(AgentSignIn command) {
 	  	ActorRef<AgentEvent> agent = agents.get(command.agent.agentId);
-	  	agent.tell(new ChangeStatus("available-1", getContext().getSelf()));
+	  	agent.tell(new ChangeStatus("available-1", getContext().getSelf(), null));
 	  	command.replyTo.tell(new ActionPerformed("Status changed"));
 		return this;
 	  }
   
   public Behavior<DeliveryCommand> onAgentSignOut(AgentSignOut command) {
 	  	ActorRef<AgentEvent> agent = agents.get(command.agent.agentId);
-	  	agent.tell(new ChangeStatus("signed-out", getContext().getSelf()));
+	  	agent.tell(new ChangeStatus("signed-out", getContext().getSelf(), null));
 	  	command.replyTo.tell(new ActionPerformed("Status changed"));
 		return this;
 	  }
@@ -459,7 +473,6 @@ public class DeliveryApp {
   
   public Behavior<DeliveryCommand> onAgentAssignedtoOrder(AgentAssignedtoOrder command) {
 	  	orders_waiting.remove(command.orderId);	
-	  	//System.out.println("agent : " + command.agentId + "changed");
 		return this;
 	  }
   
@@ -579,7 +592,7 @@ public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
 		.onMessage(AgentAvailable.class, this::onAgentAvailable)
 		.onMessage(AgentData.class, this::onAgentData)
 		.onMessage(OrderFulfilled.class, this::onOrderFulfilled)
-		//.onMessage(Delete.class, this::onDelete)
+		.onMessage(AssignStatus.class, this::onAssignStatus)
 		.build();
   }
 
@@ -592,7 +605,7 @@ public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
    * 		4. If the balance was successfully deducted, update the inventory.
    * 		5. If the inventory update was successful, mark the order as delivered.
   **/
-  public Behavior<OrderEvent> onNewOrder(NewOrder command) throws IOException{
+  public Behavior<OrderEvent> onNewOrder(NewOrder command) throws IOException, ExecutionException, InterruptedException{
 	this.initRestaurants();
 	RestTemplate restTemplate = new RestTemplate();
 	HttpHeaders headers = new HttpHeaders();
@@ -632,33 +645,19 @@ public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
 	
 	
 	
-	
-	//TreeMap<Integer, ActorRef<AgentEvent>> av_agents = new TreeMap<>();
+	Scheduler scheduler = null;
 	ActorRef<AgentEvent> agent;
 	for (Map.Entry mapElement : agents.entrySet()) {
   		agent = (ActorRef<AgentEvent>)mapElement.getValue();
   		System.out.println((Integer)mapElement.getKey());
-  		
-  		//Future<Object> future =  Patterns.ask(agent, new GetStatusOrder(getContext().getSelf()), timeout);
-  		
-  		/*getContext().ask(AgentData.class, agent, timeout, (ActorRef<AgentData> ref) -> new GetStatusOrder(ref), (response, throwable)-> {
-  			if(response!=null) {
-  				if(response.status.equals("available")) {
-  					//status = "assigned";
-  					agentId = (Integer)mapElement.getKey();
-  					System.out.println("new:"+agentId);
-  					ActorRef<AgentEvent> agentActor = (ActorRef<AgentEvent>)mapElement.getValue();
-  					//agentActor.tell(new ChangeStatus("unavailable", null));
-  					//command.replyTo.tell(new AgentAssignedtoOrder(orderId));
-  					av_agents.put(agentId, agentActor);
-  				}
-  			}
-  			else
-  				System.out.println("error");
-  			return null;
-  		});*/
-  		/*if(status.equals("assigned"))
-  			break;*/
+  		AgentData result = AskPattern.ask(agent, (ActorRef<AgentData> ref) -> new GetStatusOrder(ref), timeout, scheduler).toCompletableFuture().get();
+  		if(result.status.equals("available")) {
+  				status = "assigned";
+  				agentId = result.agentId;
+				agent.tell(new ChangeStatus("unavailable", command.replyTo, getContext().getSelf()));
+				break;
+  		}
+  		System.out.println("new:"+result.agentId);
   		
   	}
 	return this;
@@ -674,32 +673,24 @@ public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
   }
   
   
-  public Behavior<OrderEvent> onAgentAvailable(AgentAvailable command) {
+  public Behavior<OrderEvent> onAgentAvailable(AgentAvailable command) throws IOException, ExecutionException, InterruptedException{
 	  	if(status.equals("rejected"))
 	  		return this;
 	  	final Duration timeout = Duration.ofSeconds(3);
 	  	ActorRef<AgentEvent> agent = agents.get(command.agentId);
 	  	if(status.equals("assigned"))
 	  		agent.tell(new PingStatus(command.replyTo));
-		/*getContext().ask(AgentData.class, agent, timeout, (ActorRef<AgentData> ref) -> new GetStatusOrder(ref), (response, throwable)-> {
-			if(response!=null) {
-				if(response.status.equals("available")) {
-					status = "assigned";
-					agentId = command.agentId;
-					ActorRef<AgentEvent> agentActor = agents.get(command.agentId);
-					agentActor.tell(new ChangeStatus("unavailable", null));
-					command.replyTo.tell(new AgentAssignedtoOrder(orderId));
-				}
-			}
-			else
-				System.out.println("error");
-			return null;
-		});*/
+	  	Scheduler scheduler = null;
+	  	AgentData result = AskPattern.ask(agent, (ActorRef<AgentData> ref) -> new GetStatusOrder(ref), timeout, scheduler).toCompletableFuture().get();
+  		if(result.status.equals("available")) {
+  				status = "assigned";
+  				agentId = result.agentId;
+				agent.tell(new ChangeStatus("unavailable", command.replyTo, getContext().getSelf()));
+  		}
 		return this;
 	  }
   
   public Behavior<OrderEvent> onAgentData(AgentData command) {
-		//command.replyTo.tell(new OrderSend(this.orderId, this.status));
 		return this;
 	  }
   
@@ -707,9 +698,20 @@ public static class FulfillOrder extends AbstractBehavior<OrderEvent> {
 	  	if(agentId != -1) {
 	  		status = "delivered";
 		  	ActorRef<AgentEvent> agent = agents.get(agentId);
-		  	agent.tell(new ChangeStatus("available-2", command.replyTo));
-			//command.replyTo.tell(new OrderSend(this.orderId, this.status));
+		  	agent.tell(new ChangeStatus("available-2", command.replyTo, null));
 	  	}
+		return this;
+	  }
+  
+  public Behavior<OrderEvent> onAssignStatus(AssignStatus command) {
+	  	System.out.println("a1 : " + command.status);
+	  	if(command.status == 1) {
+	  		command.replyTo.tell(new AgentAssignedtoOrder(orderId));
+	  		return this;
+	  	}
+	  		
+	  	status = "unassigned";
+	  	agentId = -1;
 		return this;
 	  }
 
@@ -738,7 +740,6 @@ public static class Agent extends AbstractBehavior<AgentEvent> {
 			.onMessage(GetStatusOrder.class, this::onGetStatusOrder)
 			.onMessage(ChangeStatus.class, this::onChangeStatus)
 			.onMessage(PingStatus.class, this::onPingStatus)
-			//.onMessage(Delete.class, this::onDelete)
 			.build();
 	  }
 	
@@ -754,11 +755,23 @@ public static class Agent extends AbstractBehavior<AgentEvent> {
 	
 	public Behavior<AgentEvent> onChangeStatus(ChangeStatus command) {
 		String tempStatus = command.status;
+		System.out.println(command.status + ":" + status);
 		if(status.equals("unavailable") && command.status.equals("signed-out"))
-			return this;
-		if(!status.equals("available") && command.status.equals("unavailable"))
-			return this;
+		{
+			if(command.replyTo==null && command.sender == null)
+				System.out.println("reinit");
+			else
+				return this;
+		}
+			
+		if(status.equals("unavailable") && command.status.equals("unavailable"))
+			command.sender.tell(new AssignStatus(0, command.replyTo));
+		if(status.equals("unavailable") && command.status.equals("available"))
+			command.replyTo.tell(new AgentReady(agentId));
+		if(status.equals("available") && command.status.equals("unavailable"))
+			command.sender.tell(new AssignStatus(1, command.replyTo));
 		if(status.equals("signed-out") && command.status.equals("available-1")) {
+			//System.out.println("hua");
 			command.replyTo.tell(new AgentReady(agentId));
 			tempStatus = "available";
 		}
@@ -767,7 +780,7 @@ public static class Agent extends AbstractBehavior<AgentEvent> {
 			tempStatus = "available";
 		}
 			
-		status = tempStatus;;
+		status = tempStatus;
 		return this;
 	  }
 	
